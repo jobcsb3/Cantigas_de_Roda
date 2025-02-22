@@ -1,0 +1,195 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/pwm.h"
+#include "hardware/adc.h"
+#include "hardware/i2c.h"
+#include "ssd1306.h"
+
+// Definindo os pinos
+#define BOTAO_A_PIN 5         // Pino do botão A
+#define BOTAO_B_PIN 6         // Pino do botão B
+#define ALTO_FALANTE1_PIN 10  // Pino do alto-falante 1
+#define ALTO_FALANTE2_PIN 21  // Pino do alto-falante 2
+#define ADC_VRY_PIN 26        // Pino do eixo Y do joystick
+#define ADC_VRX_PIN 27        // Pino do eixo X do joystick
+#define I2C_SDA_PIN 14        // Pino SDA para I2C
+#define I2C_SCL_PIN 15        // Pino SCL para I2C
+
+// Frequências das notas
+typedef struct {
+    const char* nome;  // Nome da nota
+    uint freq;         // Frequência da nota
+} Nota;
+
+Nota notas[] = {
+    {"C4", 261},   // DO
+    {"D4", 294},   // RE
+    {"E4", 329},   // MI
+    {"F4", 349},   // FA
+    {"G4", 392},   // SOL
+    {"A4", 440},   // LA
+    {"B4", 494},   // SI
+    {"C5", 523},   // DO (uma oitava acima)
+    {"PAUSA", 0}   // Pausa (sem som)
+};
+
+// Músicas
+Nota musica_cinco_patinhos[] = {
+    {"G4", 1}, {"C4", 1}, {"C4", 1},  // Sol, Dó, Dó
+    {"C4", 1}, {"B4", 1}, {"A4", 1}, {"G4", 1},  // Dó, Si, Lá, Sol
+    {"G4", 1}, {"G4", 1}, {"C4", 1}, {"C4", 1}, {"F4", 1}, {"F4", 1},  // Sol, Sol, Dó, Dó, Fá, Fá
+    {"E4", 1}, {"E4", 1}, {"D4", 1}, {"D4", 1},  // Mi, Mi, Ré, Ré
+    {"G4", 1}, {"C4", 1}, {"C4", 1}, {"C4", 1},  // Sol, Dó, Dó, Dó
+    {"C4", 1}, {"B4", 1}, {"A4", 1}, {"G4", 1},  // Dó, Si, Lá, Sol
+    {"G4", 1}, {"G4", 1}, {"C4", 1}, {"C4", 1}, {"F4", 1}, {"F4", 1},  // Sol, Sol, Dó, Dó, Fá, Fá
+    {"F4", 1}, {"E4", 1}, {"D4", 1}, {"C4", 1},  // Fá, Mi, Ré, Dó
+};
+
+Nota musica_sapo[] = {
+    {"C4", 2}, {"F4", 1}, {"F4", 1}, {"C4", 1}, {"D4", 1}, {"C4", 1}, {"A4", 1},  // Dó, Fá, Fá, Dó, Ré, Dó, Lá
+    {"C4", 2}, {"F4", 1}, {"F4", 1}, {"C4", 1}, {"D4", 1}, {"C4", 1}, {"A4", 1},  // Dó, Fá, Fá, Dó, Ré, Dó, Lá
+    {"C4", 2}, {"C4", 1}, {"E4", 1}, {"E4", 1}, {"C4", 1}, {"D4", 1}, {"C4", 1}, {"E4", 1}, {"E4", 1}, // Dó, Dó, Mi, Mi, Dó, Ré, Dó, Mi, Mi
+    {"C4", 2}, {"D4", 1}, {"C4", 1}, {"E4", 1}, {"D4", 1}, {"C4", 1},  // Dó, Ré, Dó, Mi, Ré, Dó
+};
+
+Nota musica_marcha[] = {
+    {"G4", 1}, {"G4", 1}, {"E4", 1}, {"C4", 1}, {"C4", 1},  // Sol, Sol, Mi, Dó, Dó
+    {"E4", 1}, {"G4", 1}, {"G4", 1}, {"G4", 1}, {"E4", 1}, {"D4", 1},  // Mi, Sol, Sol, Sol, Mi, Ré
+    {"E4", 1}, {"F4", 1}, {"F4", 1}, {"F4", 1}, {"E4", 1}, {"G4", 1}, {"G4", 1},  // Mi, Fá, Fá, Fá, Mi, Sol, Sol
+    {"A4", 1}, {"G4", 1}, {"F4", 1}, {"E4", 1}, {"D4", 1}, {"C4", 1},  // Lá, Sol, Fá, Mi, Ré, Dó
+    {"C4", 1}, {"E4", 1}, {"G4", 1}, {"G4", 1}, {"E4", 1}, {"C4", 1},  // Dó, Mi, Sol, Sol, Mi, Dó
+    {"C4", 1}, {"E4", 1}, {"G4", 1}, {"G4", 1}, {"G4", 1}, {"E4", 1}, {"D4", 1},  // Dó, Mi, Sol, Sol, Sol, Mi, Ré
+    {"E4", 1}, {"F4", 1}, {"F4", 1}, {"F4", 1}, {"E4", 1}, {"G4", 1}, {"G4", 1},  // Mi, Fá, Fá, Fá, Mi, Sol, Sol
+    {"A4", 1}, {"G4", 1}, {"F4", 1}, {"E4", 1}, {"D4", 1}, {"C4", 1}  // Lá, Sol, Fá, Mi, Ré, Dó
+};
+
+Nota musica_borboletinha[] = {
+    {"C4", 1}, {"D4", 1}, {"C4", 1}, {"F4", 1}, {"F4", 1},  // Dó, Ré, Dó, Fá, Fá
+    {"C4", 1}, {"D4", 1}, {"C4", 1}, {"E4", 1}, {"E4", 1},  // Dó, Ré, Dó, Mi, Mi
+    {"C4", 1}, {"D4", 1}, {"C4", 1}, {"E4", 1}, {"E4", 1},  // Dó, Ré, Dó, Mi, Mi
+    {"C4", 1}, {"C4", 1}, {"D4", 1}, {"D4", 1}, {"E4", 1}, {"E4", 1}, {"F4", 1},  // Dó, Dó, Ré, Ré, Mi, Mi, Fá
+};
+
+Nota musica_atirei_o_pau_no_gato[] = {
+    {"G4", 1}, {"F4", 1}, {"E4", 1}, {"D4", 1}, {"E4", 1}, {"F4", 1}, {"G4", 1}, {"G4", 1}, {"G4", 1},  // Sol, Fá, Mi, Ré, Mi, Fá, Sol, Sol, Sol
+    {"A4", 1}, {"G4", 1}, {"F4", 1}, {"F4", 1}, {"F4", 1},  // Lá, Sol, Fá, Fá, Fá
+    {"G4", 1}, {"F4", 1}, {"E4", 1}, {"E4", 1}, {"E4", 1},  // Sol, Fá, Mi, Mi, Mi
+    {"C4", 1}, {"C4", 1}, {"A4", 1}, {"A4", 1}, {"A4", 1},  // Dó, Dó, Lá, Lá, Lá
+    {"B4", 1}, {"A4", 1}, {"G4", 1}, {"G4", 1}, {"G4", 1},  // Si, Lá, Sol, Sol, Sol
+    {"E4", 1}, {"F4", 1}, {"G4", 1}, {"E4", 1}, {"F4", 1}, {"G4", 1},  // Mi, Fá, Sol, Mi, Fá, Sol
+    {"F4", 1}, {"E4", 1}, {"D4", 1}, {"C4", 1}  // Fá, Mi, Ré, Dó
+};
+
+// Dicionário de músicas
+typedef struct {
+    const char* nome;      // Nome da música
+    const Nota* notas;     // Notas da música
+    size_t num_notas;      // Número de notas na música
+} Musica;
+
+Musica musicas[] = {
+    {"Sapo Nao Lava o Pe", musica_sapo, sizeof(musica_sapo) / sizeof(Nota)},  // Música "Sapo Não Lava o Pé"
+    {"Marcha Soldado", musica_marcha, sizeof(musica_marcha) / sizeof(Nota)},  // Música "Marcha Soldado"
+    {"Borboletinha", musica_borboletinha, sizeof(musica_borboletinha) / sizeof(Nota)},  // Música "Borboletinha"
+    {"Atirei o Pau no Gato", musica_atirei_o_pau_no_gato, sizeof(musica_atirei_o_pau_no_gato) / sizeof(Nota)},  // Música "Atirei o Pau no Gato"
+    {"Cinco Patinhos", musica_cinco_patinhos, sizeof(musica_cinco_patinhos) / sizeof(Nota)}  // Música "Cinco Patinhos"
+};
+
+bool musica_tocando = false;  // Variável que indica se uma música está tocando
+uint8_t indice_musica = 0;     // Índice da música atualmente selecionada
+bool mutado = false;           // Variável que indica se o som está mutado
+
+// Inicializa o PWM
+void init_pwm() {
+    gpio_set_function(ALTO_FALANTE1_PIN, GPIO_FUNC_PWM);  // Configura o pino do alto-falante 1 para PWM
+    gpio_set_function(ALTO_FALANTE2_PIN, GPIO_FUNC_PWM);  // Configura o pino do alto-falante 2 para PWM
+    pwm_set_wrap(ALTO_FALANTE1_PIN, 125); // Define um valor de wrap apropriado para o PWM
+    pwm_set_wrap(ALTO_FALANTE2_PIN, 125); // Define um valor de wrap apropriado para o PWM
+}
+
+// Toca a música
+void tocar_musica(Musica musica) {
+    musica_tocando = true; // Marca que a música está tocando
+    printf("Tocando: %s\n", musica.nome); // Exibe o nome da música que está tocando
+    
+    for (size_t i = 0; i < musica.num_notas; i++) {
+        if (!musica_tocando) break; // Verifica se a música deve parar
+
+        Nota nota = musica.notas[i]; // Obtém a nota atual
+        pwm_set_clkdiv(ALTO_FALANTE1_PIN, (float)125000000 / nota.freq); // Define a frequência do PWM para a nota
+        pwm_set_clkdiv(ALTO_FALANTE2_PIN, (float)125000000 / nota.freq); // Define a frequência do PWM para o segundo alto-falante
+        
+        pwm_set_enabled(ALTO_FALANTE1_PIN, true); // Habilita o PWM para o alto-falante 1
+        pwm_set_enabled(ALTO_FALANTE2_PIN, true); // Habilita o PWM para o alto-falante 2
+        sleep_ms(400 * nota.freq); // Tempo de duração da nota
+        pwm_set_enabled(ALTO_FALANTE1_PIN, false); // Desabilita o PWM para o alto-falante 1
+        pwm_set_enabled(ALTO_FALANTE2_PIN, false); // Desabilita o PWM para o alto-falante 2
+        sleep_ms(70); // Espera antes de tocar a próxima nota
+    }
+    musica_tocando = false; // Marca que a música terminou
+}
+
+// Sinal para troca de música
+void sinal_troca_musica() {
+    pwm_set_clkdiv(ALTO_FALANTE1_PIN, 125000000 / 1000); // Frequência do sinal
+    pwm_set_enabled(ALTO_FALANTE1_PIN, true); // Habilita o PWM para sinalizar a troca de música
+    sleep_ms(100); // Espera
+    pwm_set_enabled(ALTO_FALANTE1_PIN, false); // Desabilita o PWM
+}
+
+// Inicializa I2C e OLED
+void init_i2c_oled() {
+    i2c_init(i2c0, 400 * 1000); // Inicializa o I2C a 400kHz
+    gpio_set_function(I2C_SDA_PIN, GPIO_FUNC_I2C); // Configura o pino SDA para I2C
+    gpio_set_function(I2C_SCL_PIN, GPIO_FUNC_I2C); // Configura o pino SCL para I2C
+    gpio_pull_up(I2C_SDA_PIN); // Ativa o pull-up no pino SDA
+    gpio_pull_up(I2C_SCL_PIN); // Ativa o pull-up no pino SCL
+    ssd1306_init(); // Inicializa o display OLED
+}
+
+// Alterna entre as músicas
+void alternar_musicas() {
+    uint16_t adc_vry_raw; // Variável para armazenar o valor lido do joystick
+    while (true) { // Loop infinito para alternar entre as músicas
+        // Exibir todas as músicas no OLED
+        ssd1306_clear_screen(); // Limpa a tela do OLED
+        for (size_t i = 0; i < sizeof(musicas) / sizeof(Musica); i++) {
+            if (i == indice_musica) {
+                ssd1306_write_string(f"> {musicas[i].nome}", 0, i * 10); // Destaque a música selecionada
+            } else {
+                ssd1306_write_string(musicas[i].nome, 0, i * 10); // Exibe o nome da música
+            }
+        }
+        ssd1306_update(); // Atualiza o display OLED
+
+        // Lê o valor do joystick
+        adc_vry_raw = adc_read(ADC_VRY_PIN); // Lê o valor do pino do joystick para movimento vertical
+
+        // Verifica o movimento do joystick
+        if (adc_vry_raw < 15000) { // Ajuste para Cima
+            indice_musica = (indice_musica + 1) % (sizeof(musicas) / sizeof(Musica)); // Aumenta o índice da música
+            sinal_troca_musica(); // Envia um sinal de troca de música
+            sleep_ms(200); // Debounce para evitar leituras múltiplas
+        } else if (adc_vry_raw > 60000) { // Ajuste para Baixo
+            indice_musica = (indice_musica - 1 + (sizeof(musicas) / sizeof(Musica))) % (sizeof(musicas) / sizeof(Musica)); // Diminui o índice da música
+            sinal_troca_musica(); // Envia um sinal de troca de música
+            sleep_ms(200); // Debounce para evitar leituras múltiplas
+        }
+
+        // Verifica se o botão A foi pressionado
+        if (gpio_get(BOTAO_A_PIN) == 0) { // Botão A
+            tocar_musica(musicas[indice_musica]); // Toca a música selecionada
+            sleep_ms(500); // Debounce para evitar leituras múltiplas
+        }
+
+        // Verifica se o botão B foi pressionado para mutar/desmutar
+        if (gpio_get(BOTAO_B_PIN) == 0) { // Botão B
+            mutado = !mutado; // Alterna o estado de mutar/desmutar
+            if (mutado) {
+                pwm_set_enabled(ALTO_FALANTE1_PIN, false); // Desativa o PWM do alto-falante 1
+                pwm_set_enabled(ALTO_FALANTE2_PIN, false); // Desativa o PWM do alto-falante 2
+            }
+            sleep_ms(500); // Debounce para evitar leituras múltiplas
+        }
+    }
+}

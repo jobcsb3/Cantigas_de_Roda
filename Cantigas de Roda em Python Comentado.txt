@@ -1,0 +1,159 @@
+import time  # Importa o módulo time para manipulação de tempo
+from machine import Pin, PWM, SoftI2C, ADC  # Importa classes do módulo machine para controle de hardware
+from ssd1306 import SSD1306_I2C  # Importa a classe SSD1306_I2C para controlar o display OLED
+
+# Inicialize ADC e pinos GPIO
+adc_y = ADC(Pin(26))  # VRy - Inicializa o ADC para o pino 26 (vertical)
+adc_x = ADC(Pin(27))  # VRx - Inicializa o ADC para o pino 27 (horizontal)
+botao_a = Pin(5, Pin.IN, Pin.PULL_UP)  # Botão A - Inicializa o pino 5 como entrada com resistor de pull-up
+
+# Conecte os buzzers aos pinos GP21 e GP10
+alto_falante1 = PWM(Pin(10))  # Alto-falante 1 no pino 10, configurado para PWM
+alto_falante2 = PWM(Pin(21))  # Alto-falante 2 no pino 21, configurado para PWM
+
+# Frequências das notas musicais
+notas = {
+    'C4': {'freq': 261},   # DO (C4) - Frequência 261 Hz
+    'D4': {'freq': 294},   # RE (D4) - Frequência 294 Hz
+    'E4': {'freq': 329},   # MI (E4) - Frequência 329 Hz
+    'F4': {'freq': 349},   # FA (F4) - Frequência 349 Hz
+    'G4': {'freq': 392},   # SOL (G4) - Frequência 392 Hz
+    'A4': {'freq': 440},   # LA (A4) - Frequência 440 Hz
+    'B4': {'freq': 494},   # SI (B4) - Frequência 494 Hz
+    'C5': {'freq': 523},   # DO (C5) - Frequência 523 Hz (uma oitava acima)
+    'PAUSA': {'freq': 0}   # Pausa - Sem som
+}
+
+# Músicas
+musica_cinco_patinhos = [
+    ('G4', 1), ('C4', 1), ('C4', 1),  # SOL, DO, DO
+    ('C4', 1), ('B4', 1), ('A4', 1), ('G4', 1),  # DO, SI, LA, SOL
+    ('G4', 1), ('G4', 1), ('C4', 1), ('C4', 1), ('F4', 1), ('F4', 1),  # Repetição
+    ('E4', 1), ('E4', 1), ('D4', 1), ('D4', 1),  # MI, MI, RE, RE
+    ('G4', 1), ('C4', 1), ('C4', 1), ('C4', 1),  # SOL, DO, DO, DO
+    ('C4', 1), ('B4', 1), ('A4', 1), ('G4', 1),  # DO, SI, LA, SOL
+    ('G4', 1), ('G4', 1), ('C4', 1), ('C4', 1), ('F4', 1), ('F4', 1),  # Repetição
+    ('F4', 1), ('E4', 1), ('D4', 1), ('C4', 1),  # FA, MI, RE, DO
+]
+
+musica_sapo = [
+    ('C4', 2), ('F4', 1), ('F4', 1), ('C4', 1), ('D4', 1), ('C4', 1), ('A4', 1),  # DO, FA, FA, DO, RE, DO, LA
+    ('C4', 2), ('F4', 1), ('F4', 1), ('C4', 1), ('D4', 1), ('C4', 1), ('A4', 1),  # Repetição
+    ('C4', 2), ('C4', 1), ('E4', 1), ('E4', 1), ('C4', 1), ('D4', 1), ('C4', 1), ('E4', 1), ('E4', 1),  # DO, DO, MI, MI, DO, RE, DO
+    ('C4', 2), ('D4', 1), ('C4', 1), ('E4', 1), ('D4', 1), ('C4', 1),  # DO, RE, DO, MI, RE, DO
+]
+
+musica_marcha = [
+    ('G4', 1), ('G4', 1), ('E4', 1), ('C4', 1), ('C4', 1),  # SOL, SOL, MI, DO, DO
+    ('E4', 1), ('G4', 1), ('G4', 1), ('G4', 1), ('E4', 1), ('D4', 1),  # MI, SOL, SOL, SOL, MI, RE
+    ('E4', 1), ('F4', 1), ('F4', 1), ('F4', 1), ('E4', 1), ('G4', 1), ('G4', 1),  # MI, FA, FA, FA, MI, SOL, SOL
+    ('A4', 1), ('G4', 1), ('F4', 1), ('E4', 1), ('D4', 1), ('C4', 1),  # LA, SOL, FA, MI, RE, DO
+    ('C4', 1), ('E4', 1), ('G4', 1), ('G4', 1), ('E4', 1), ('C4', 1),  # DO, MI, SOL, SOL, MI, DO
+    ('C4', 1), ('E4', 1), ('G4', 1), ('G4', 1), ('G4', 1), ('E4', 1), ('D4', 1),  # DO, MI, SOL, SOL, SOL, MI, RE
+    ('E4', 1), ('F4', 1), ('F4', 1), ('F4', 1), ('E4', 1), ('G4', 1), ('G4', 1),  # MI, FA, FA, FA, MI, SOL, SOL
+    ('A4', 1), ('G4', 1), ('F4', 1), ('E4', 1), ('D4', 1), ('C4', 1)  # LA, SOL, FA, MI, RE, DO
+]
+
+musica_borboletinha = [
+    ('C4', 1), ('D4', 1), ('C4', 1), ('F4', 1), ('F4', 1),  # DO, RE, DO, FA, FA
+    ('C4', 1), ('D4', 1), ('C4', 1), ('E4', 1), ('E4', 1),  # DO, RE, DO, MI, MI
+    ('C4', 1), ('D4', 1), ('C4', 1), ('E4', 1), ('E4', 1),  # DO, RE, DO, MI, MI
+    ('C4', 1), ('C4', 1), ('D4', 1), ('D4', 1), ('E4', 1), ('E4', 1), ('F4', 1),  # DO, DO, RE, RE, MI, MI, FA
+]
+
+musica_atirei_o_pau_no_gato = [
+    ('G4', 1), ('F4', 1), ('E4', 1), ('D4', 1), ('E4', 1), ('F4', 1), ('G4', 1), ('G4', 1), ('G4', 1),  # SOL, FA, MI, RE, MI, FA, SOL, SOL, SOL
+    ('A4', 1), ('G4', 1), ('F4', 1), ('F4', 1), ('F4', 1),  # LA, SOL, FA, FA, FA
+    ('G4', 1), ('F4', 1), ('E4', 1), ('E4', 1), ('E4', 1),  # SOL, FA, MI, MI, MI
+    ('C4', 1), ('C4', 1), ('A4', 1), ('A4', 1), ('A4', 1),  # DO, DO, LA, LA, LA
+    ('B4', 1), ('A4', 1), ('G4', 1), ('G4', 1), ('G4', 1),  # SI, LA, SOL, SOL, SOL
+    ('E4', 1), ('F4', 1), ('G4', 1), ('E4', 1), ('F4', 1), ('G4', 1),  # MI, FA, SOL, MI, FA, SOL
+    ('F4', 1), ('E4', 1), ('D4', 1), ('C4', 1)  # FA, MI, RE, DO
+]
+
+# Dicionário de músicas
+musicas = {
+    "Sapo Nao Lava o Pe": musica_sapo,  # Mapeia o nome da música para sua sequência de notas
+    "Marcha Soldado": musica_marcha,
+    "Borboletinha": musica_borboletinha,
+    "Atirei o Pau no Gato": musica_atirei_o_pau_no_gato,
+    "Cinco Patinhos": musica_cinco_patinhos
+}
+
+# Configuração do OLED
+i2c = SoftI2C(scl=Pin(15), sda=Pin(14))  # Inicializa a comunicação I2C com os pinos SCL e SDA
+oled = SSD1306_I2C(128, 64, i2c)  # Inicializa o display OLED com resolução de 128x64
+
+# Variáveis de controle
+musica_tocando = False  # Estado da música (tocando ou não)
+indice_musica = 0  # Índice da música atual
+
+# Função para tocar a música
+def tocar_musica(musica, nome_musica):
+    global musica_tocando  # Permite modificar a variável global
+    musica_tocando = True  # Define que a música está tocando
+    print(f"Tocando: {nome_musica}")  # Exibe no console qual música está tocando
+    oled.fill(0)  # Limpa o display
+    oled.text(nome_musica, 0, 0)  # Exibe o nome da música no display
+    oled.show()  # Atualiza o display
+
+    for nota, duracao in musica:  # Itera sobre cada nota e sua duração na música
+        if not musica_tocando:  # Verifica se a música deve ser interrompida
+            break
+        freq = notas[nota]['freq']  # Obtém a frequência da nota
+        alto_falante1.freq(freq)  # Define a frequência do alto-falante 1
+        alto_falante2.freq(freq)  # Define a frequência do alto-falante 2
+        alto_falante1.duty_u16(32768 if freq > 0 else 0)  # Define o duty cycle para o alto-falante 1
+        alto_falante2.duty_u16(32768 if freq > 0 else 0)  # Define o duty cycle para o alto-falante 2
+        time.sleep_ms(400 * duracao)  # Espera pelo tempo da duração da nota
+        alto_falante1.duty_u16(0)  # Desliga o alto-falante 1
+        alto_falante2.duty_u16(0)  # Desliga o alto-falante 2
+        time.sleep_ms(70)  # Espera um pequeno intervalo entre as notas
+
+    alto_falante1.duty_u16(0)  # Desliga o alto-falante 1 no final
+    alto_falante2.duty_u16(0)  # Desliga o alto-falante 2 no final
+    musica_tocando = False  # Reseta a variável ao final
+
+# Função para tocar um sinal sonoro simplificado
+def sinal_troca_musica():
+    alto_falante1.freq(1000)  # Frequência do sinal de troca
+    alto_falante1.duty_u16(32768)  # Define duty cycle
+    time.sleep_ms(100)  # Toca por 100 ms
+    alto_falante1.duty_u16(0)  # Desliga o alto-falante
+
+# Função para alternar entre as músicas
+def alternar_musicas():
+    global indice_musica  # Permite modificar a variável global
+    
+    while True:  # Loop infinito para alternar músicas
+        # Exibir todas as músicas no OLED
+        oled.fill(0)  # Limpa o display
+        lista_musicas = list(musicas.keys())  # Cria uma lista com os nomes das músicas
+        for i, nome in enumerate(lista_musicas):  # Itera sobre a lista de músicas
+            if i == indice_musica:  # Verifica se é a música selecionada
+                oled.text(f'> {nome}', 0, i * 10)  # Destaque a música selecionada
+            else:
+                oled.text(f'  {nome}', 0, i * 10)  # Exibe as outras músicas
+        oled.show()  # Atualiza o display
+
+        # Leitura dos valores do joystick
+        adc_y_raw = adc_y.read_u16()  # Lê o valor do joystick na direção Y
+
+        # Verifica o movimento do joystick
+        if adc_y_raw < 15000:  # Ajuste para Cima (menor sensibilidade)
+            indice_musica = (indice_musica + 1) % len(lista_musicas)  # Move para a próxima música
+            sinal_troca_musica()  # Toca sinal sonoro
+            time.sleep_ms(200)  # Debounce
+        elif adc_y_raw > 60000:  # Ajuste para Baixo (menor sensibilidade)
+            indice_musica = (indice_musica - 1) % len(lista_musicas)  # Move para a música anterior
+            sinal_troca_musica()  # Toca sinal sonoro
+            time.sleep_ms(200)  # Debounce
+
+        # Verifica se o botão A foi pressionado
+        if not botao_a.value():  # Botão A pressionado
+            tocar_musica(musicas[lista_musicas[indice_musica]], lista_musicas[indice_musica])  # Toca a música selecionada
+            time.sleep(0.5)  # Debounce
+
+# Iniciar a alternância das músicas
+while True:  # Loop infinito
+    alternar_musicas()  # Chama a função para alternar músicas
