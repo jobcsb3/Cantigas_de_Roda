@@ -9,9 +9,9 @@ Aqui você encontrará o código-fonte, documentação e recursos utilizados no 
 ```
 /Cantigas_de_Roda
 │── /build         # Diretório de compilação (gerado pelo CMake)
-│── /src           # Código-fonte principal (.c, .cpp)
+│── /src           # Código-fonte principal (.c, .cpp, .py)
 │── /include       # Cabeçalhos (.h, .hpp)
-│── /lib           # Bibliotecas externas (se necessário)
+│── /lib           # Bibliotecas externas
 │── CMakeLists.txt # Configuração do projeto CMake
 │── pico_sdk_import.cmake # Importação do SDK da Raspberry Pi
 │── README.md      # Documentação do projeto
