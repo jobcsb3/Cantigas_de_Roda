@@ -22,6 +22,9 @@ Abaixo está a lista de projetos desenvolvidos. Cada um possui um diretório esp
 
 - [Cantigas_de_Roda](./Cantigas_de_Roda)
 
+## 📚 Descrição do Projeto
+Cantigas_de_Roda: Este projeto tem como objetivo principal desenvolver um sistema interativo que utilize a eletrônica para estimular o aprendizado infantil por meio das cantigas de roda. Para isso, foi criado um dispositivo que permite às crianças navegarem e selecionarem cantigas de rodas utilizando um joystick e um display OLED, e reproduzi-las utilizando o botão A e os buzzers A e B. 
+
 ## 🖼️ Setup do Hardware
 BitDogLab (Raspberry Pi Pico W, Display OLED SSD1306, Botão A, Buzzer A e Buzzer B, Joystick, Fonte de Alimentação)
 
