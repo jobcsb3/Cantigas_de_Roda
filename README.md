@@ -20,10 +20,10 @@ Aqui você encontrará o código-fonte, documentação e recursos utilizados no 
 ## 🔗 Projetos
 Abaixo está a lista de projetos desenvolvidos. Cada um possui um diretório específico dentro do repositório:
 
-- [Projetos_Embarcatech_Hbr_2025](./Cantigas_de_Roda)
-- [Projetos_Embarcatech_Hbr_2025](./Leitor de Temperatura Interna (RP2040))
-- [Projetos_Embarcatech_Hbr_2025](./Contador Decrescente Controlado por Interrupção)
-- [Projetos_Embarcatech_Hbr_2025](./Conversor de Valores Digital (Joystick))
+- [Cantigas de Roda](./Cantigas_de_Roda)
+- Leitor de Temperatura Interna (RP2040)
+- Contador Decrescente Controlado por Interrupção
+- Conversor de Valores Digital (Joystick)
 
 ## 📚 Descrição do Projeto
 Cantigas_de_Roda: Este projeto tem como objetivo principal desenvolver um sistema interativo que utilize a eletrônica para estimular o aprendizado infantil por meio das cantigas de roda. Para isso, foi criado um dispositivo que permite às crianças navegarem e selecionarem cantigas de rodas utilizando um joystick e um display OLED, e reproduzi-las utilizando o botão A e os buzzers A e B. 
