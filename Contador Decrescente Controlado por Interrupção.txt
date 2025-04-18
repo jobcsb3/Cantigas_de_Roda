@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/gpio.h"
+#include "hardware/timer.h"
+#include "pico/stdio.h"
+#include "pico/time.h"
+#include "pico-ssd1306/ssd1306.h"
+#include "hardware/i2c.h"
+
+// Definições de pinos
+#define BUTTON_A 5
+#define BUTTON_B 6
+#define I2C_SDA  14
+#define I2C_SCL  15
+
+// Variáveis globais
+volatile int contador = 0;
+volatile int contando = 0;
+volatile int cliques_b = 0;
+absolute_time_t next_tick;
+
+// Display
+ssd1306_t display;
+
+// Interrupção do botão A (inicia contagem)
+void button_a_isr(uint gpio, uint32_t events) {
+    if (gpio == BUTTON_A && events & GPIO_IRQ_EDGE_FALL) {
+        contador = 9;
+        cliques_b = 0;
+        contando = 1;
+        next_tick = make_timeout_time_ms(1000);
+    }
+}
+
+// Interrupção do botão B (conta cliques durante contagem)
+void button_b_isr(uint gpio, uint32_t events) {
+    if (gpio == BUTTON_B && events & GPIO_IRQ_EDGE_FALL && contando) {
+        cliques_b++;
+    }
+}
+
+// Atualiza o display
+void atualizar_display() {
+    char linha1[20], linha2[20];
+    sprintf(linha1, "Contador: %d", contador);
+    sprintf(linha2, "Cliques B: %d", cliques_b);
+
+    ssd1306_clear(&display);
+    ssd1306_draw_string(&display, 0, 0, 1, linha1);
+    ssd1306_draw_string(&display, 0, 16, 1, linha2);
+    ssd1306_show(&display);
+}
+
+int main() {
+    stdio_init_all();
+
+    // Inicializa GPIOs dos botões
+    gpio_init(BUTTON_A);
+    gpio_set_dir(BUTTON_A, GPIO_IN);
+    gpio_pull_up(BUTTON_A);
+    gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &button_a_isr);
+
+    gpio_init(BUTTON_B);
+    gpio_set_dir(BUTTON_B, GPIO_IN);
+    gpio_pull_up(BUTTON_B);
+    gpio_set_irq_enabled(BUTTON_B, GPIO_IRQ_EDGE_FALL, true);
+    gpio_add_raw_irq_handler(BUTTON_B, button_b_isr);
+
+    // Inicializa I2C e display
+    i2c_init(i2c0, 400 * 1000);
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA);
+    gpio_pull_up(I2C_SCL);
+
+    ssd1306_init(&display, 128, 64, i2c0, 0x3C, false);
+    ssd1306_clear(&display);
+    ssd1306_show(&display);
+
+    atualizar_display();
+
+    while (true) {
+        // Verifica se está em modo de contagem e se já passou 1 segundo
+        if (contando && absolute_time_diff_us(get_absolute_time(), next_tick) <= 0) {
+            contador--;
+            next_tick = make_timeout_time_ms(1000);
+            atualizar_display();
+
+            if (contador <= 0) {
+                contando = 0;
+                atualizar_display();
+            }
+        }
+        sleep_ms(50); // Pequeno atraso para evitar sobrecarga da CPU
+    }
+
+    return 0;
+}

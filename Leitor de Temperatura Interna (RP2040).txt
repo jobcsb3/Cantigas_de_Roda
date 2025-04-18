@@ -1,0 +1,36 @@
+#include <stdio.h>
+#include "pico/stdlib.h"
+#include "hardware/adc.h"
+
+float ler_temperatura_celsius() {
+    // Seleciona o canal do sensor interno (ADC4)
+    adc_select_input(4);
+    uint16_t leitura = adc_read();
+
+    // Converte a leitura do ADC (12 bits) para tensão
+    float tensao = leitura * 3.3f / 4095.0f;
+
+    // Converte tensão para temperatura em °C
+    float temperatura = 27.0f - (tensao - 0.706f) / 0.001721f;
+
+    return temperatura;
+}
+
+int main() {
+    stdio_init_all();
+    sleep_ms(1000); // Espera o terminal abrir
+
+    // Inicializa ADC
+    adc_init();
+
+    // Ativa o sensor de temperatura interno
+    adc_set_temp_sensor_enabled(true);
+
+    while (true) {
+        float temp_c = ler_temperatura_celsius();
+        printf("Temperatura interna: %.2f ºC\n", temp_c);
+        sleep_ms(1000);
+    }
+
+    return 0;
+}
