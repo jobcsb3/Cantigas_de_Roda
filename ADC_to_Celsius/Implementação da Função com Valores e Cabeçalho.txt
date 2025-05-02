@@ -1,0 +1,18 @@
+#include "adc_temp.h"
+
+float adc_to_celsius(uint16_t adc_val) {
+    const float VREF = 3.3f;
+    const float conversion_factor = VREF / 4095.0f;
+    float voltage = adc_val * conversion_factor;
+    float temperature = 27.0f - (voltage - 0.706f) / 0.001721f;
+    return temperature;
+}
+
+#ifndef ADC_TEMP_H
+#define ADC_TEMP_H
+
+#include <stdint.h>
+
+float adc_to_celsius(uint16_t adc_val);
+
+#endif
