@@ -1,0 +1,325 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include "pico/stdlib.h"
+#include "hardware/i2c.h"
+#include "ssd1306.h"
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define I2C_PORT i2c0
+#define I2C_SDA 4
+#define I2C_SCL 5
+
+#define NUM_CHANNELS 16
+#define CHANNEL_WIDTH (SCREEN_WIDTH / NUM_CHANNELS)
+#define MAX_BALLS 50
+#define TICK_DELAY_MS 50
+#define PIN_ROWS 7
+
+typedef struct {
+    int x, y;
+    bool active;
+} Ball;
+
+Ball balls[MAX_BALLS];
+int histogram[NUM_CHANNELS] = {0};
+int ball_total = 0;
+
+// Aleatoriedade com viés (1.0 = sempre direita, 0.0 = sempre esquerda, 0.5 = neutro)
+int random_direction(float bias) {
+    return (rand() / (float)RAND_MAX) < bias ? 1 : -1;
+}
+
+void init_ball(Ball* ball) {
+    ball->x = SCREEN_WIDTH / 2;
+    ball->y = 0;
+    ball->active = true;
+}
+
+void update_ball(Ball* ball, float bias) {
+    if (!ball->active) return;
+
+    if (ball->y % (SCREEN_HEIGHT / PIN_ROWS) == 0) {
+        ball->x += (CHANNEL_WIDTH / 2) * random_direction(bias);
+        if (ball->x < 0) ball->x = 0;
+        if (ball->x >= SCREEN_WIDTH) ball->x = SCREEN_WIDTH - 1;
+    }
+
+    ball->y += 2;
+
+    if (ball->y >= SCREEN_HEIGHT - 1) {
+        int channel = ball->x / CHANNEL_WIDTH;
+        if (channel >= NUM_CHANNELS) channel = NUM_CHANNELS - 1;
+        histogram[channel]++;
+        ball_total++;
+        ball->active = false;
+    }
+}
+
+void draw_histogram(SSD1306_t* disp) {
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+        int bar_height = histogram[i];
+        if (bar_height > SCREEN_HEIGHT - 10) bar_height = SCREEN_HEIGHT - 10;
+        for (int y = 0; y < bar_height; y++) {
+            for (int x = 0; x < CHANNEL_WIDTH - 1; x++) {
+                ssd1306_draw_pixel(disp, i * CHANNEL_WIDTH + x, SCREEN_HEIGHT - 1 - y);
+            }
+        }
+    }
+}
+
+void draw_balls(SSD1306_t* disp) {
+    for (int i = 0; i < MAX_BALLS; i++) {
+        if (balls[i].active) {
+            ssd1306_draw_pixel(disp, balls[i].x, balls[i].y);
+        }
+    }
+}
+
+void draw_ball_counter(SSD1306_t* disp) {
+    char buf[20];
+    snprintf(buf, sizeof(buf), "Total: %d", ball_total);
+    ssd1306_draw_string(disp, 0, 0, buf);
+}
+
+void init_display(SSD1306_t* disp) {
+    i2c_init(I2C_PORT, 400 * 1000);
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA);
+    gpio_pull_up(I2C_SCL);
+
+    ssd1306_init(disp, I2C_PORT, 0x3C, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ssd1306_clear(disp);
+    ssd1306_show(disp);
+}
+
+// MAIN
+int main() {
+    stdio_init_all();
+    srand(time_us_32());
+
+    SSD1306_t disp;
+    init_display(&disp);
+
+    for (int i = 0; i < MAX_BALLS; i++) {
+        balls[i].active = false;
+    }
+
+    int tick = 0;
+    int next_ball_tick = 0;
+    float bias = 0.5; // Sem viés (modifique para 0.6 ou 0.4 para testar desbalanceamento)
+
+    while (true) {
+        if (tick >= next_ball_tick) {
+            for (int i = 0; i < MAX_BALLS; i++) {
+                if (!balls[i].active) {
+                    init_ball(&balls[i]);
+                    next_ball_tick = tick + 10;
+                    break;
+                }
+            }
+        }
+
+        for (int i = 0; i < MAX_BALLS; i++) {
+            if (balls[i].active) {
+                update_ball(&balls[i], bias);
+            }
+        }
+
+        ssd1306_clear(&disp);
+        draw_histogram(&disp);
+        draw_balls(&disp);
+        draw_ball_counter(&disp);
+        ssd1306_show(&disp);
+
+        sleep_ms(TICK_DELAY_MS);
+        tick++;
+    }
+
+    return 0;
+}
+
+
+//Bias: float bias = 0.5; → coloque 0.6 ou 0.7 para favorecer a direita, ou 0.4 para a esquerda.
+//Velocidade: altere TICK_DELAY_MS para acelerar ou desacelerar a simulação.
+//Número de canaletas: NUM_CHANNELS.
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include "pico/stdlib.h"
+#include "hardware/i2c.h"
+#include "hardware/gpio.h"
+#include "ssd1306.h"
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define I2C_PORT i2c0
+#define I2C_SDA 4
+#define I2C_SCL 5
+
+#define NUM_CHANNELS 16
+#define CHANNEL_WIDTH (SCREEN_WIDTH / NUM_CHANNELS)
+#define MAX_BALLS 50
+#define TICK_DELAY_MS 50
+#define PIN_ROWS 7
+
+#define BUTTON_A 6  // Aumenta viés
+#define BUTTON_B 7  // Diminui viés
+
+typedef struct {
+    int x, y;
+    bool active;
+} Ball;
+
+Ball balls[MAX_BALLS];
+int histogram[NUM_CHANNELS] = {0};
+int ball_total = 0;
+float bias = 0.5; // Começa equilibrado
+
+int random_direction(float bias) {
+    return (rand() / (float)RAND_MAX) < bias ? 1 : -1;
+}
+
+void init_ball(Ball* ball) {
+    ball->x = SCREEN_WIDTH / 2;
+    ball->y = 0;
+    ball->active = true;
+}
+
+void update_ball(Ball* ball, float bias) {
+    if (!ball->active) return;
+
+    if (ball->y % (SCREEN_HEIGHT / PIN_ROWS) == 0) {
+        ball->x += (CHANNEL_WIDTH / 2) * random_direction(bias);
+        if (ball->x < 0) ball->x = 0;
+        if (ball->x >= SCREEN_WIDTH) ball->x = SCREEN_WIDTH - 1;
+    }
+
+    ball->y += 2;
+
+    if (ball->y >= SCREEN_HEIGHT - 1) {
+        int channel = ball->x / CHANNEL_WIDTH;
+        if (channel >= NUM_CHANNELS) channel = NUM_CHANNELS - 1;
+        histogram[channel]++;
+        ball_total++;
+        ball->active = false;
+    }
+}
+
+void draw_histogram(SSD1306_t* disp) {
+    for (int i = 0; i < NUM_CHANNELS; i++) {
+        int bar_height = histogram[i];
+        if (bar_height > SCREEN_HEIGHT - 10) bar_height = SCREEN_HEIGHT - 10;
+        for (int y = 0; y < bar_height; y++) {
+            for (int x = 0; x < CHANNEL_WIDTH - 1; x++) {
+                ssd1306_draw_pixel(disp, i * CHANNEL_WIDTH + x, SCREEN_HEIGHT - 1 - y);
+            }
+        }
+    }
+}
+
+void draw_balls(SSD1306_t* disp) {
+    for (int i = 0; i < MAX_BALLS; i++) {
+        if (balls[i].active) {
+            ssd1306_draw_pixel(disp, balls[i].x, balls[i].y);
+        }
+    }
+}
+
+void draw_ball_counter(SSD1306_t* disp) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Total: %d Bias: %.2f", ball_total, bias);
+    ssd1306_draw_string(disp, 0, 0, buf);
+}
+
+void init_display(SSD1306_t* disp) {
+    i2c_init(I2C_PORT, 400 * 1000);
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
+    gpio_pull_up(I2C_SDA);
+    gpio_pull_up(I2C_SCL);
+
+    ssd1306_init(disp, I2C_PORT, 0x3C, SCREEN_WIDTH, SCREEN_HEIGHT);
+    ssd1306_clear(disp);
+    ssd1306_show(disp);
+}
+
+void init_buttons() {
+    gpio_init(BUTTON_A);
+    gpio_set_dir(BUTTON_A, GPIO_IN);
+    gpio_pull_up(BUTTON_A);
+
+    gpio_init(BUTTON_B);
+    gpio_set_dir(BUTTON_B, GPIO_IN);
+    gpio_pull_up(BUTTON_B);
+}
+
+void check_buttons() {
+    static absolute_time_t last_adjust_time;
+    if (absolute_time_diff_us(last_adjust_time, get_absolute_time()) < 200000) return; // 200ms debounce
+
+    if (!gpio_get(BUTTON_A) && bias < 1.0f) {
+        bias += 0.05f;
+        if (bias > 1.0f) bias = 1.0f;
+        last_adjust_time = get_absolute_time();
+    }
+
+    if (!gpio_get(BUTTON_B) && bias > 0.0f) {
+        bias -= 0.05f;
+        if (bias < 0.0f) bias = 0.0f;
+        last_adjust_time = get_absolute_time();
+    }
+}
+
+// MAIN
+int main() {
+    stdio_init_all();
+    srand(time_us_32());
+
+    SSD1306_t disp;
+    init_display(&disp);
+    init_buttons();
+
+    for (int i = 0; i < MAX_BALLS; i++) {
+        balls[i].active = false;
+    }
+
+    int tick = 0;
+    int next_ball_tick = 0;
+
+    while (true) {
+        check_buttons();
+
+        if (tick >= next_ball_tick) {
+            for (int i = 0; i < MAX_BALLS; i++) {
+                if (!balls[i].active) {
+                    init_ball(&balls[i]);
+                    next_ball_tick = tick + 10;
+                    break;
+                }
+            }
+        }
+
+        for (int i = 0; i < MAX_BALLS; i++) {
+            if (balls[i].active) {
+                update_ball(&balls[i], bias);
+            }
+        }
+
+        ssd1306_clear(&disp);
+        draw_histogram(&disp);
+        draw_balls(&disp);
+        draw_ball_counter(&disp);
+        ssd1306_show(&disp);
+
+        sleep_ms(TICK_DELAY_MS);
+        tick++;
+    }
+
+    return 0;
+}
